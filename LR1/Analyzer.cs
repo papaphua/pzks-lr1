@@ -97,10 +97,10 @@ public static class Analyzer
         return result;
     }
 
-    // Checks if the previous character is a valid operand (either a letter or a number).
+    // Checks if the previous character is a valid operand ( letter, number, or ')' )
     private static bool IsPreviousOperand(char character)
     {
-        return char.IsNumber(character) || char.IsLetter(character);
+        return char.IsNumber(character) || char.IsLetter(character) || character == CloseParentheses;
     }
 
     // Checks whether the next character is a valid operand ( letter, number, or '(' )
