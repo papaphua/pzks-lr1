@@ -7,34 +7,61 @@ public static class Analyzer
     private const char Period = '.';
     private const char OpenParentheses = '(';
     private const char CloseParentheses = ')';
-    private static readonly HashSet<char> Operators = ['+', '-', '*', '/', '^'];
+    private static readonly HashSet<char> AdditiveOperators = ['+', '-'];
+    private static readonly HashSet<char> MultiplicativeOperators = ['*', '/', '^'];
+    private static readonly HashSet<char> Operators = [..AdditiveOperators, ..MultiplicativeOperators];
 
     public static List<Error> Analyze(string expression)
     {
+        expression += ' ';
         var result = new List<Error>();
+
+        var isCheckingNumber = false;
+        var numberPeriodCount = 0;
+        var numberStartIndex = 0;
+        var checkedNumber = new StringBuilder();
+
         var openParenthesesIndexes = new Stack<int>();
 
         for (var index = 0; index < expression.Length; index++)
         {
             var currChar = expression[index];
+            var prevChar = index - 1 >= 0 ? expression[index - 1] : (char?)null;
+            var nextChar = index + 1 < expression.Length ? expression[index + 1] : (char?)null;
 
-            if (char.IsNumber(currChar))
+            // Marks the current index as the beginning of the number sequence validation
+            if (char.IsNumber(currChar) && !isCheckingNumber)
             {
-                var (outIndex, error) = ValidateNumber(index, expression);
-
-                if (error != null) result.Add(error);
-
-                index = outIndex;
+                isCheckingNumber = true;
+                numberStartIndex = index;
             }
-            else if (Operators.Contains(currChar))
+
+            // Verifies that the number sequence contains no more than one period
+            if (isCheckingNumber)
             {
-                var (outIndex, errors) = ValidateOperator(index, expression);
+                if (char.IsNumber(currChar))
+                {
+                    checkedNumber.Append(currChar);
+                }
+                else if (currChar == Period)
+                {
+                    checkedNumber.Append(currChar);
+                    ++numberPeriodCount;
+                }
+                else
+                {
+                    if (numberPeriodCount > 1)
+                        result.Add(
+                            Error.Create(Message.InvalidNumberFormat(checkedNumber.ToString()), numberStartIndex));
 
-                if (errors.Count > 0) result.AddRange(errors);
-
-                index = outIndex;
+                    isCheckingNumber = false;
+                    numberPeriodCount = 0;
+                    numberStartIndex = 0;
+                    checkedNumber.Clear();
+                }
             }
-            else if (currChar == OpenParentheses)
+
+            if (currChar == OpenParentheses)
             {
                 openParenthesesIndexes.Push(index);
             }
@@ -45,85 +72,40 @@ public static class Analyzer
                 else
                     result.Add(Error.Create(Message.ExtraClosingParentheses(), index));
             }
-            else if ((char.IsLetter(currChar) &&
-                      !(char.ToLower(currChar) >= 'a' && char.ToLower(currChar) <= 'z')) ||
-                     currChar == Period)
+
+            // Verifies that operator has valid operands before and after it
+            if (Operators.Contains(currChar))
             {
-                result.Add(Error.Create(Message.InvalidCharacter(currChar), index));
+                // Ensures that '*' '/' '^' are preceded by a number or letter, but not by '('
+                // Treats '+' and '-' as indicators of positive or negative signs for the current character
+                if (MultiplicativeOperators.Contains(currChar) &&
+                    (prevChar == null || !IsPreviousOperand(prevChar.Value)))
+                    result.Add(Error.Create(Message.MissingOperandBefore(currChar), index));
+
+                // Ensures that the character following current operator is a number, letter, or '('
+                if (nextChar != null && !IsNextOperand(nextChar.Value))
+                    result.Add(Error.Create(Message.MissingOperandAfter(currChar), index));
             }
         }
 
         while (openParenthesesIndexes.Count > 0)
         {
-            var openIndex = openParenthesesIndexes.Pop();
-            result.Add(Error.Create(Message.MissingClosingParentheses(), openIndex));
+            var index = openParenthesesIndexes.Pop();
+            result.Add(Error.Create(Message.MissingClosingParentheses(), index));
         }
 
         return result;
     }
 
-    private static (int outIndex, Error? error) ValidateNumber(int index, string expression)
+    // Checks if the previous character is a valid operand (either a letter or a number).
+    private static bool IsPreviousOperand(char character)
     {
-        var number = new StringBuilder();
-        number.Append(expression[index]);
-
-        var outIndex = index + 1;
-        var periodCount = 0;
-
-        for (var i = outIndex; i < expression.Length; i++)
-        {
-            outIndex = i;
-            var currChar = expression[i];
-
-            if (char.IsNumber(currChar))
-            {
-                number.Append(currChar);
-            }
-            else if (currChar == Period)
-            {
-                number.Append(currChar);
-                periodCount++;
-            }
-            else
-            {
-                --outIndex;
-                break;
-            }
-        }
-
-        return periodCount > 1
-            ? (outIndex, Error.Create(Message.InvalidNumberFormat(number.ToString()), outIndex))
-            : (outIndex, null);
+        return char.IsNumber(character) || char.IsLetter(character);
     }
 
-    private static (int outIndex, List<Error> errors) ValidateOperator(int index, string expression)
+    // Checks whether the next character is a valid operand ( letter, number, or '(' )
+    private static bool IsNextOperand(char character)
     {
-        var errors = new List<Error>();
-        var previousOperator = expression[index];
-        var outIndex = index + 1;
-
-        for (var i = outIndex; i < expression.Length; i++)
-        {
-            outIndex = i;
-            var currChar = expression[i];
-
-            if (Operators.Contains(currChar))
-            {
-                errors.Add(Error.Create(Message.InvalidOperatorSequence(previousOperator, currChar), index));
-            }
-            else if (currChar == CloseParentheses)
-            {
-                errors.Add(Error.Create(Message.MissingOperand(previousOperator), index));
-                --outIndex;
-                break;
-            }
-            else
-            {
-                --outIndex;
-                break;
-            }
-        }
-
-        return (outIndex, errors);
+        return char.IsNumber(character) || char.IsLetter(character) || character == OpenParentheses;
     }
 }

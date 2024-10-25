@@ -24,18 +24,18 @@ public sealed class Message
         return new Message("Відсутня закриваюча дужка");
     }
 
-    public static Message InvalidOperatorSequence(char operator1, char operator2)
-    {
-        return new Message($"Некоректна послідовність операторів '{operator1}' і '{operator2}'");
-    }
-
     public static Message InvalidNumberFormat(string number)
     {
         return new Message($"Некоректний десятковий дріб '{number}'");
     }
 
-    public static Message MissingOperand(char operatorChar)
+    public static Message MissingOperandAfter(char operatorChar)
     {
         return new Message($"Відсутній операнд після оператора '{operatorChar}'");
+    }
+
+    public static Message MissingOperandBefore(char operatorChar)
+    {
+        return new Message($"Відсутній операнд перед оператором '{operatorChar}'");
     }
 }
